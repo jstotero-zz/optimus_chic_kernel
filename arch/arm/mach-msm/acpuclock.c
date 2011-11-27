@@ -186,6 +186,8 @@ static struct clkctl_acpu_speed pll0_245_pll1_960_pll2_1200[] = {
 	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0}, {0, 0, 0} }
 };
 
+//PLL configuration for Ochic (from dmseg) L val: PLL0: 50, PLL1: 12, PLL2: 62
+
 /* 7x27 normal with CDMA-only modem */
 static struct clkctl_acpu_speed pll0_196_pll1_960_pll2_1200[] = {
 	{ 0, 19200, ACPU_PLL_TCXO, 0, 0, 19200, 0, 0, 24576 },
@@ -211,7 +213,15 @@ static struct clkctl_acpu_speed pll0_960_pll1_245_pll2_1200[] = {
 	{ 0, 400000, ACPU_PLL_2, 2, 2, 133333, 2, 5, 122880 },
 	{ 1, 480000, ACPU_PLL_0, 4, 1, 160000, 2, 6, 122880 },
 	{ 1, 600000, ACPU_PLL_2, 2, 1, 200000, 2, 7, 122880 },
-	{ 1, 721000, ACPU_PLL_2, 2, 1, 240333, 2, 7, 122880 },
+	{ 1, 652800, ACPU_PLL_0, 4, 0, 217600, 2, 7, 200000 },
+	{ 1, 672000, ACPU_PLL_0, 4, 0, 224000, 2, 7, 200000 },
+	{ 1, 691200, ACPU_PLL_0, 4, 0, 230400, 2, 7, 200000 },
+	{ 1, 710400, ACPU_PLL_0, 4, 0, 236800, 2, 7, 200000 },
+	{ 1, 729600, ACPU_PLL_0, 4, 0, 243200, 2, 7, 200000 },
+	{ 1, 748800, ACPU_PLL_0, 4, 0, 249600, 2, 7, 200000 },
+	{ 1, 768000, ACPU_PLL_0, 4, 0, 256000, 2, 7, 200000 },
+	{ 1, 787200, ACPU_PLL_0, 4, 0, 262400, 2, 7, 200000 },
+	{ 1, 806400, ACPU_PLL_0, 4, 0, 268800, 2, 7, 200000 },
 	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0}, {0, 0, 0} }
 };
 
@@ -410,6 +420,14 @@ static void acpuclk_set_div(const struct clkctl_acpu_speed *hunt_s) {
 		writel(reg_clksel, A11S_CLK_SEL_ADDR);
 	}
 
+	// Perform overclocking if requested
+	if(hunt_s->pll==0 && hunt_s->a11clk_khz>600000) {
+		// Change the speed of PLL0
+		writel(hunt_s->a11clk_khz/19200, PLLn_L_VAL(0));
+		cpu_relax();
+		udelay(50);
+	}
+
 	/* Program clock source and divider */
 	reg_clkctl = readl(A11S_CLK_CNTL_ADDR);
 	reg_clkctl &= ~(0xFF << (8 * src_sel));
@@ -420,6 +438,14 @@ static void acpuclk_set_div(const struct clkctl_acpu_speed *hunt_s) {
 	/* Program clock source selection */
 	reg_clksel ^= 1;
 	writel(reg_clksel, A11S_CLK_SEL_ADDR);
+
+	// Recover from overclocking
+	if(hunt_s->pll==0 && hunt_s->a11clk_khz<=600000) {
+		// Restore the speed of PLL0
+		writel(50, PLLn_L_VAL(0));
+		cpu_relax();
+		udelay(50);
+	}
 
 	/*
 	 * If the new clock divider is lower than the previous, then
